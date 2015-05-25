@@ -13,6 +13,8 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+import itertools
+
 import ddt
 import mock
 
@@ -40,12 +42,20 @@ class ManilaScenarioTestCase(test.TestCase):
         fake_name = "fake_name"
         fake_share = mock.Mock()
         mock_clients.return_value.shares.create.return_value = fake_share
+        self.scenario.context = {
+            "tenant": {
+                "share_networks": ["sn_1_id", "sn_2_id", ],
+            }
+        }
+        self.scenario.context["tenant"]["sn_iterator"] = itertools.cycle(
+            self.scenario.context["tenant"]["share_networks"])
         self.scenario._generate_random_name = mock.Mock(return_value=fake_name)
 
         self.scenario._create_share("nfs")
 
         mock_clients.return_value.shares.create.assert_called_once_with(
-            "nfs", 1, name=fake_name)
+            "nfs", 1, name=fake_name,
+            share_network=self.scenario.context["tenant"]["share_networks"][0])
 
         mock_wait_for.assert_called_once_with(
             fake_share, is_ready=mock.ANY, update_resource=mock.ANY,

@@ -17,3 +17,6 @@
         users:
           tenants: 2
           users_per_tenant: 1
+        manila:
+          use_share_networks: False
+          share_networks: {}

@@ -11,6 +11,8 @@
         users:
           tenants: 1
           users_per_tenant: 1
+        manila:
+          use_share_networks: False
 
   ManilaShares.create_share_network_and_delete:
     -
@@ -27,6 +29,8 @@
         users:
           tenants: 2
           users_per_tenant: 1
+        manila:
+          use_share_networks: False
 
   ManilaShares.create_share_network_and_list:
     -
@@ -46,6 +50,8 @@
         users:
           tenants: 2
           users_per_tenant: 1
+        manila:
+          use_share_networks: False
 
   ManilaShares.list_share_servers:
     -
@@ -55,6 +61,9 @@
         type: "constant"
         times: 10
         concurrency: 1
+      context:
+        manila:
+          use_share_networks: False
 
   ManilaShares.create_security_service_and_delete:
   {% for s in ("ldap", "kerberos", "active_directory") %}
@@ -76,6 +85,8 @@
         users:
           tenants: 1
           users_per_tenant: 1
+        manila:
+          use_share_networks: False
   {% endfor %}
 
   ManilaShares.attach_security_service_to_share_network:
@@ -91,4 +102,6 @@
         quotas:
           manila:
             share_networks: -1
+        manila:
+          use_share_networks: False
   {% endfor %}

@@ -11,3 +11,6 @@
         quotas:
           manila:
             share_networks: -1
+        manila:
+          use_share_networks: False
+          share_networks: {}

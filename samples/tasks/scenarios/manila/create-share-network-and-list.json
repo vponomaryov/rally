@@ -22,6 +22,10 @@
                 "users": {
                     "tenants": 2,
                     "users_per_tenant": 1
+                },
+                "manila": {
+                    "use_share_networks": false,
+                    "share_networks": {}
                 }
             }
         }

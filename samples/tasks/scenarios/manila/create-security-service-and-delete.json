@@ -15,6 +15,12 @@
                 "type": "constant",
                 "times": 10,
                 "concurrency": 10
+            },
+            "context": {
+                "manila": {
+                    "use_share_networks": false,
+                    "share_networks": {}
+                }
             }
         }
     ]

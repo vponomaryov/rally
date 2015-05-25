@@ -11,6 +11,8 @@
         users:
           tenants: 1
           users_per_tenant: 1
+        manila:
+          use_share_networks: False
 
   ManilaShares.create_and_delete_share:
     -
@@ -31,6 +33,8 @@
         users:
           tenants: 2
           users_per_tenant: 1
+        manila:
+          use_share_networks: False
 
   ManilaShares.create_share_network_and_delete:
     -
@@ -47,6 +51,8 @@
         users:
           tenants: 2
           users_per_tenant: 1
+        manila:
+          use_share_networks: False
 
   ManilaShares.create_share_network_and_list:
     -
@@ -66,3 +72,5 @@
         users:
           tenants: 2
           users_per_tenant: 1
+        manila:
+          use_share_networks: False

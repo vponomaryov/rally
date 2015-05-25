@@ -71,6 +71,11 @@ class ManilaScenario(base.Scenario):
         :param is_public: defines whether to set share as public or not.
         :returns: instance of :class:`Share`
         """
+        if (self.context.get("tenant", {}).get("share_networks", []) and
+                not kwargs.get("share_network")):
+            kwargs["share_network"] = next(self.context.get("tenant", {}).get(
+                "sn_iterator"))
+
         if not kwargs.get("name"):
             kwargs["name"] = self._generate_random_name()
 
