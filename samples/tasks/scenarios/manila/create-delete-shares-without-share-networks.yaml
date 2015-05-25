@@ -1,0 +1,21 @@
+---
+  ManilaShares.create_delete_shares:
+    -
+      args:
+        share_proto: "nfs"
+        size: 1
+        min_sleep: 1
+        max_sleep: 2
+      runner:
+        type: "constant"
+        times: 2
+        concurrency: 2
+      context:
+        users:
+          tenants: 2
+          users_per_tenant: 1
+        manila:
+          use_share_networks: false
+          share_networks: {}
+          use_security_services: false
+          security_services: []

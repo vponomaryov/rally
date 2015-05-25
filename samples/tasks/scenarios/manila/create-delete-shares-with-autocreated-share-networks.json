@@ -1,0 +1,51 @@
+{
+    "ManilaShares.create_delete_shares": [
+        {
+            "args": {
+                "share_proto": "nfs",
+                "size": 1,
+                "min_sleep": 1,
+                "max_sleep": 2
+            },
+            "runner": {
+                "type": "constant",
+                "times": 2,
+                "concurrency": 2
+            },
+            "context": {
+                "users": {
+                    "tenants": 2,
+                    "users_per_tenant": 1
+                },
+                "network": {
+                    "networks_per_tenant": 1,
+                    "start_cidr": "99.0.0.0/24"
+                },
+                "manila": {
+                    "use_share_networks": true,
+                    "use_security_services": false,
+                    "security_services": [
+                        {"type": "ldap",
+                         "name": "optional name for Manila",
+                         "server": "LDAP server address",
+                         "user": "User that will be used",
+                         "password": "Password for specified user"},
+                        {"type": "kerberos",
+                         "name": "optional name for Manila",
+                         "dns_ip": "IP address of DNS service to be used",
+                         "server": "Kerberos server address",
+                         "domain": "Kerberos realm",
+                         "user": "User that will be used",
+                         "password": "Password for specified user"},
+                        {"type": "active_directory",
+                         "name": "optional name for Manila",
+                         "dns_ip": "IP address of DNS service to be used",
+                         "domain": "Domain from 'Active Directory'",
+                         "user": "User from 'Active Directory'",
+                         "password": "password for specified user"}
+                    ]
+                }
+            }
+        }
+    ]
+}

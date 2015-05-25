@@ -229,6 +229,17 @@ def _get_validated_flavor(config, clients, param_name):
 
 
 @validator
+def verify_share_proto(config, clients, deployment):
+    """Verifies value of share protocol for creation of Manila share."""
+    allowed = ("NFS", "CIFS", "GLUSTERFS", "HDFS", )
+    share_proto = config.get("args", {}).get("share_proto")
+    if six.text_type(share_proto).upper() not in allowed:
+        message = _("Share protocol '%(sp)s' is invalid, allowed values are "
+                    "%(allowed)s.") % {"sp": share_proto, "allowed": allowed}
+        return ValidationResult(False, message)
+
+
+@validator
 def image_exists(config, clients, deployment, param_name, nullable=False):
     """Returns validator for image_id
 
