@@ -240,6 +240,27 @@ class Clients(object):
         return client
 
     @cached
+    def manila(self, version="1"):
+        """Return manila client."""
+        from manilaclient import client as manila
+        client = manila.Client(
+            version,
+            region_name=self.endpoint.region_name,
+            http_log_debug=logging.is_debug(),
+            timeout=CONF.openstack_client_http_timeout,
+            insecure=self.endpoint.insecure,
+            cacert=self.endpoint.cacert,
+            **self._get_auth_info(password_key="api_key",
+                                  project_name_key="project_name"))
+        kc = self.keystone()
+        client.client.management_url = kc.service_catalog.url_for(
+            service_type="share",
+            endpoint_type=self.endpoint.endpoint_type,
+            region_name=self.endpoint.region_name)
+        client.client.auth_token = kc.auth_token
+        return client
+
+    @cached
     def ceilometer(self, version="2"):
         """Return ceilometer client."""
         from ceilometerclient import client as ceilometer

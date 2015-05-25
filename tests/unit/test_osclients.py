@@ -244,6 +244,34 @@ class OSClientsTestCase(test.TestCase):
                              self.fake_keystone.auth_token)
             self.assertEqual(fake_cinder, self.clients.cache["cinder"])
 
+    def test_manila(self):
+        fake_manila = mock.MagicMock(client=mock.Mock())
+        mock_manila = mock.MagicMock()
+        mock_manila.client.Client.return_value = fake_manila
+        self.assertNotIn("manila", self.clients.cache)
+        with mock.patch.dict("sys.modules", {"manilaclient": mock_manila}):
+            client = self.clients.manila()
+            self.assertEqual(fake_manila, client)
+            self.service_catalog.url_for.assert_called_once_with(
+                service_type="share",
+                endpoint_type=consts.EndpointType.PUBLIC,
+                region_name=self.endpoint.region_name)
+            mock_manila.client.Client.assert_called_once_with(
+                "1",
+                http_log_debug=False,
+                timeout=cfg.CONF.openstack_client_http_timeout,
+                insecure=False, cacert=None,
+                username=self.endpoint.username,
+                api_key=self.endpoint.password,
+                region_name=self.endpoint.region_name,
+                project_name=self.endpoint.tenant_name,
+                auth_url=self.endpoint.auth_url)
+            self.assertEqual(fake_manila.client.management_url,
+                             self.service_catalog.url_for.return_value)
+            self.assertEqual(fake_manila.client.auth_token,
+                             self.fake_keystone.auth_token)
+            self.assertEqual(fake_manila, self.clients.cache["manila"])
+
     def test_ceilometer(self):
         fake_ceilometer = fakes.FakeCeilometerClient()
         mock_ceilometer = mock.MagicMock()

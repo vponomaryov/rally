@@ -97,6 +97,7 @@ class _Service(utils.ImmutableMixin, utils.EnumMixin):
     NOVAV3 = "novav3"
     CINDER = "cinder"
     CINDERV2 = "cinderv2"
+    MANILA = "manila"
     EC2 = "ec2"
     GLANCE = "glance"
     CLOUD = "cloud"
@@ -118,6 +119,7 @@ class _ServiceType(utils.ImmutableMixin, utils.EnumMixin):
 
     VOLUME = "volume"
     VOLUMEV2 = "volumev2"
+    SHARE = "share"
     EC2 = "ec2"
     IMAGE = "image"
     CLOUD = "cloudformation"
@@ -143,6 +145,7 @@ class _ServiceType(utils.ImmutableMixin, utils.EnumMixin):
             self.COMPUTEV3: _Service.NOVAV3,
             self.VOLUME: _Service.CINDER,
             self.VOLUMEV2: _Service.CINDER,
+            self.SHARE: _Service.MANILA,
             self.EC2: _Service.EC2,
             self.IMAGE: _Service.GLANCE,
             self.CLOUD: _Service.CLOUD,
