@@ -99,3 +99,122 @@ class ManilaScenario(base.Scenario):
             update_resource=bench_utils.get_from_manager(error_statuses),
             timeout=CONF.benchmark.manila_share_delete_timeout,
             check_interval=CONF.benchmark.manila_share_delete_poll_interval)
+
+    @base.atomic_action_timer("manila.create_share_network")
+    def _create_share_network(self, neutron_net_id=None,
+                              neutron_subnet_id=None,
+                              nova_net_id=None, name=None, description=None):
+        """Create share network.
+
+        :param neutron_net_id: ID of Neutron network
+        :param neutron_subnet_id: ID of Neutron subnet
+        :param nova_net_id: ID of Nova network
+        :param name: share network name
+        :param description: share network description
+        :returns: instance of :class:`ShareNetwork`
+        """
+        share_network = self.clients("manila").share_networks.create(
+            neutron_net_id=neutron_net_id,
+            neutron_subnet_id=neutron_subnet_id,
+            nova_net_id=nova_net_id,
+            name=name,
+            description=description)
+        return share_network
+
+    @base.atomic_action_timer("manila.delete_share_network")
+    def _delete_share_network(self, share_network):
+        """Delete share network.
+
+        :param share_network: instance of :class:`ShareNetwork`.
+        """
+        share_network.delete()
+        bench_utils.wait_for_delete(
+            share_network,
+            update_resource=bench_utils.get_from_manager(),
+            timeout=CONF.benchmark.manila_share_delete_timeout,
+            check_interval=CONF.benchmark.manila_share_delete_poll_interval)
+
+    @base.atomic_action_timer("manila.list_share_networks")
+    def _list_share_networks(self, detailed=True, search_opts=None):
+        """List share networks.
+
+        :param detailed: defines either to return detailed list of
+            objects or not.
+        :param search_opts: container of search opts such as
+            "project_id" and "name".
+        :returns: list of instances of :class:`ShareNetwork`
+        """
+        share_networks = self.clients("manila").share_networks.list(
+            detailed=detailed, search_opts=search_opts)
+        return share_networks
+
+    @base.atomic_action_timer("manila.list_share_servers")
+    def _list_share_servers(self, search_opts=None):
+        """List share servers. Admin only.
+
+        :param search_opts: set of key-value pairs to filter share servers by.
+            Example: {"share_network": "share_network_name_or_id"}
+        :returns: list of instances of :class:`ShareServer`
+        """
+        share_servers = self.clients("manila").share_servers.list(
+            search_opts=search_opts)
+        return share_servers
+
+    @base.atomic_action_timer("manila.create_security_service")
+    def _create_security_service(self, type, dns_ip=None, server=None,
+                                 domain=None, user=None, password=None,
+                                 name=None, description=None):
+        """Create security service.
+
+        'Security service' is data container in Manila that stores info
+        about auth services 'Active Directory', 'Kerberos' and catalog
+        service 'LDAP' that should be used for shares.
+
+        :param type: security service type, permitted values are
+            'ldap', 'kerberos' or 'active_directory'.
+        :param dns_ip: dns ip address used inside tenant's network
+        :param server: security service server ip address or hostname
+        :param domain: security service domain
+        :param user: security identifier used by tenant
+        :param password: password used by user
+        :param name: security service name
+        :param description: security service description
+        :returns: instance of :class:`SecurityService`
+        """
+        security_service = self.clients("manila").security_services.create(
+            type=type,
+            dns_ip=dns_ip,
+            server=server,
+            domain=domain,
+            user=user,
+            password=password,
+            name=name,
+            description=description)
+        return security_service
+
+    @base.atomic_action_timer("manila.delete_security_service")
+    def _delete_security_service(self, security_service):
+        """Delete security service.
+
+        :param security_service: instance of :class:`SecurityService`.
+        """
+        security_service.delete()
+        bench_utils.wait_for_delete(
+            security_service,
+            update_resource=bench_utils.get_from_manager(),
+            timeout=CONF.benchmark.manila_share_delete_timeout,
+            check_interval=CONF.benchmark.manila_share_delete_poll_interval)
+
+    @base.atomic_action_timer("manila.add_security_service_to_share_network")
+    def _add_security_service_to_share_network(self, share_network,
+                                               security_service):
+        """Associate given security service with a share network.
+
+        :param share_network: ID or instance of :class:`ShareNetwork`.
+        :param security_service: ID or instance of :class:`SecurityService`.
+        :returns: instance of :class:`ShareNetwork`.
+        """
+        share_network = self.clients(
+            "manila").share_networks.add_security_service(
+                share_network, security_service)
+        return share_network
