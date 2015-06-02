@@ -25,7 +25,9 @@
                 },
                 "manila": {
                     "use_share_networks": false,
-                    "share_networks": {}
+                    "share_networks": {},
+                    "use_security_services": false,
+                    "security_services": []
                 }
             }
         }

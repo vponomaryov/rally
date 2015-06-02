@@ -21,3 +21,5 @@
         manila:
           use_share_networks: False
           share_networks: {}
+          use_security_services: False
+          security_services: []
