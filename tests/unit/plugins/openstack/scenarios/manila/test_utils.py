@@ -77,6 +77,24 @@ class ManilaScenarioTestCase(test.TestCase):
             fake_share, update_resource=mock.ANY, timeout=180,
             check_interval=2)
 
+    @ddt.data(
+        {"detailed": True, "search_opts": {"name": "foo_sn"}},
+        {"detailed": False, "search_opts": None},
+        {},
+        {"search_opts": {"project_id": "fake_project"}},
+    )
+    @mock.patch(MANILA_UTILS + "clients")
+    def test__list_shares(self, params, mock_clients):
+        fake_shares = ["foo", "bar"]
+        mock_clients.return_value.shares.list.return_value = fake_shares
+
+        result = self.scenario._list_shares(**params)
+
+        self.assertEqual(fake_shares, result)
+        mock_clients.return_value.shares.list.assert_called_once_with(
+            detailed=params.get("detailed", True),
+            search_opts=params.get("search_opts", None))
+
     @mock.patch(MANILA_UTILS + "clients")
     def test__create_share_network(self, mock_clients):
         fake_share = mock.Mock()

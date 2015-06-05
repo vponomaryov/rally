@@ -1,6 +1,5 @@
 ---
-  {% for s in ("create_and_delete_share", "create_and_list_share") %}
-  ManilaShares.{{s}}:
+  ManilaShares.create_and_list_share:
     -
       args:
         share_proto: "nfs"
@@ -46,4 +45,3 @@
              "user": "User from 'Active Directory'",
              "password": "password for specified user"},
           ]
-  {% endfor %}

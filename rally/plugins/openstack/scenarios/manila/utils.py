@@ -105,6 +105,18 @@ class ManilaScenario(base.Scenario):
             timeout=CONF.benchmark.manila_share_delete_timeout,
             check_interval=CONF.benchmark.manila_share_delete_poll_interval)
 
+    @base.atomic_action_timer("manila.list_shares")
+    def _list_shares(self, detailed=True, search_opts=None):
+        """Returns user shares list.
+
+        :param detailed: defines either to return detailed list of
+            objects or not.
+        :param search_opts: container of search opts such as
+            "name", "host", "share_type", etc.
+        """
+        return self.clients("manila").shares.list(
+            detailed=detailed, search_opts=search_opts)
+
     @base.atomic_action_timer("manila.create_share_network")
     def _create_share_network(self, neutron_net_id=None,
                               neutron_subnet_id=None,

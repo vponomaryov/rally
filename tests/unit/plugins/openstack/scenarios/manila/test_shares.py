@@ -40,3 +40,21 @@ class ManilaSharesTestCase(test.TestCase):
         scenario._create_share.assert_called_once_with(**params)
         scenario.sleep_between.assert_called_once_with(3, 4)
         scenario._delete_share.assert_called_once_with(fake_share)
+
+    @ddt.data(
+        {"share_proto": "nfs", "size": 3, "detailed": True},
+        {"share_proto": "cifs", "size": 4, "detailed": False,
+         "share_network": "foo", "share_type": "bar"},
+    )
+    def test_create_and_list_share(self, params):
+        scenario = shares.ManilaShares()
+        scenario._create_share = mock.MagicMock()
+        scenario.sleep_between = mock.MagicMock()
+        scenario._list_shares = mock.MagicMock()
+
+        scenario.create_and_list_share(min_sleep=3, max_sleep=4, **params)
+
+        detailed = params.pop("detailed")
+        scenario._create_share.assert_called_once_with(**params)
+        scenario.sleep_between.assert_called_once_with(3, 4)
+        scenario._list_shares.assert_called_once_with(detailed=detailed)

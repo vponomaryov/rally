@@ -1,6 +1,5 @@
 ---
-  {% for s in ("create_and_delete_share", "create_and_list_share") %}
-  ManilaShares.{{s}}:
+  ManilaShares.create_and_list_share:
     -
       args:
         share_proto: "nfs"
@@ -24,4 +23,3 @@
           share_networks: {}
           use_security_services: false
           security_services: []
-  {% endfor %}
