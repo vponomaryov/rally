@@ -16,6 +16,7 @@
 import ddt
 import mock
 
+from rally import exceptions
 from rally.plugins.openstack.scenarios.manila import shares
 from tests.unit import test
 
@@ -227,3 +228,56 @@ class ManilaSharesTestCase(test.TestCase):
         scenario._create_share.assert_called_once_with(**params)
         scenario.sleep_between.assert_called_once_with(3, 4)
         scenario._list_shares.assert_called_once_with(detailed=detailed)
+
+    @ddt.data(
+        {"sets": 4, "set_size": 5, "deletes": 3, "delete_size": 7},
+    )
+    def test_set_and_delete_metadata_wrong_data(self, params):
+        scenario = shares.ManilaShares()
+        self.assertRaises(
+            exceptions.InvalidArgumentsException,
+            scenario.set_and_delete_metadata,
+            **params)
+
+    @ddt.data(
+        {"tenant": {}},
+        {"tenant": {"shares": []}},
+    )
+    def test_set_and_delete_metadata_no_shares_in_context(self, context):
+        scenario = shares.ManilaShares()
+        scenario.context = context
+        self.assertRaises(
+            exceptions.InvalidContextSetup,
+            scenario.set_and_delete_metadata)
+
+    @ddt.data(
+        {},
+        {"sets": 5, "set_size": 8, "deletes": 4, "delete_size": 10},
+    )
+    @mock.patch("random.choice")
+    def test_set_and_delete_metadata(self, params, mock_random_choice):
+        scenario = shares.ManilaShares()
+        scenario.context = {"tenant": {"shares": ["fake_share"]}}
+        scenario._set_metadata = mock.MagicMock()
+        scenario._delete_metadata = mock.MagicMock()
+        expected_set_params = {
+            "share": mock_random_choice.return_value,
+            "sets": params.get("sets", 10),
+            "set_size": params.get("set_size", 3),
+            "key_min_length": params.get("key_min_length", 1),
+            "key_max_length": params.get("key_max_length", 255),
+            "value_min_length": params.get("value_min_length", 1),
+            "value_max_length": params.get("value_max_length", 1023),
+        }
+
+        scenario.set_and_delete_metadata(**params)
+
+        mock_random_choice.assert_called_once_with(
+            scenario.context["tenant"]["shares"])
+        scenario._set_metadata.assert_called_once_with(**expected_set_params)
+        scenario._delete_metadata.assert_called_once_with(
+            share=mock_random_choice.return_value,
+            keys=scenario._set_metadata.return_value,
+            deletes=params.get("deletes", 5),
+            delete_size=params.get("delete_size", 3),
+        )

@@ -43,6 +43,7 @@ class ManilaSampleGeneratorTestCase(test.TestCase):
          "name": "fake_optional_name_%s" % ss_type}
         for ss_type in ("ldap", "kerberos", "active_directory")
     ]
+    SHARES_PER_TENANT = 7
 
     def _get_context(self, use_security_services=False, networks_per_tenant=2,
                      neutron_network_provider=True):
@@ -72,6 +73,9 @@ class ManilaSampleGeneratorTestCase(test.TestCase):
                     "share_networks": [],
                     "use_security_services": use_security_services,
                     "security_services": self.SECURITY_SERVICES,
+                    "shares_per_tenant": self.SHARES_PER_TENANT,
+                    "share_proto": "fake_share_proto",
+                    "size": 13,
                 },
                 "network": {
                     "networks_per_tenant": networks_per_tenant,
@@ -99,6 +103,9 @@ class ManilaSampleGeneratorTestCase(test.TestCase):
                         "tenant_1_id": ["sn_1_id", "sn_2_name"],
                         "tenant_2_name": ["sn_3_id", "sn_4_name", "sn_5_id"],
                     },
+                    "shares_per_tenant": self.SHARES_PER_TENANT,
+                    "share_proto": "fake_share_proto",
+                    "size": 13,
                 },
             },
             "tenants": {
@@ -136,26 +143,39 @@ class ManilaSampleGeneratorTestCase(test.TestCase):
         self.assertEqual({"type": "boolean"}, props.get("use_share_networks"))
         self.assertEqual(
             {"type": "boolean"}, props.get("use_security_services"))
+        self.assertEqual(
+            {"type": "integer", "minimum": 0}, props.get("shares_per_tenant"))
+        self.assertEqual({"type": "integer", "minimum": 1}, props.get("size"))
+        self.assertEqual({"type": "string"}, props.get("share_proto"))
         self.assertEqual(450, inst.get_order())
         self.assertEqual("manila", inst.get_name())
 
-    def test_setup_share_networks_disabled(self):
-        ctxt = {
-            "task": mock.MagicMock(),
-            "config": {"manila": {"use_share_networks": False}},
-            "manila_delete_share_networks": False,
-        }
+    @mock.patch("rally.osclients.Clients")
+    @mock.patch(MANILA_UTILS_PATH + "_create_share")
+    def test_setup_share_networks_disabled(self, create_share, mock_osclients):
+        ctxt = copy.deepcopy(self.ctxt_use_existing)
+        ctxt["config"]["manila"]["use_share_networks"] = False
+        ctxt["manila_delete_share_networks"] = False
         inst = manila_context.Manila(ctxt)
-
-        expected_ctxt = copy.deepcopy(inst.context)
+        expected_ctxt = copy.deepcopy(ctxt)
+        expected_ctxt["task"] = self.ctxt_use_existing["task"]
+        for i in (1, 2):
+            expected_ctxt["tenants"]["tenant_%s_id" % i]["shares"] = [
+                create_share.return_value
+                for j in range(self.SHARES_PER_TENANT)]
 
         inst.setup()
 
         self.assertEqual(expected_ctxt, inst.context)
+        self.assertEqual(
+            self.SHARES_PER_TENANT * len(self.ctxt_use_existing["tenants"]),
+            create_share.call_count)
 
     @mock.patch("rally.osclients.Clients")
+    @mock.patch(MANILA_UTILS_PATH + "_create_share")
     @mock.patch(MANILA_UTILS_PATH + "_list_share_networks")
-    def test_setup_use_existing_share_networks(self, list_sns, mock_osclients):
+    def test_setup_use_existing_share_networks(self, list_sns, create_share,
+                                               mock_osclients):
         existing_sns = self.existing_sns
         inst = manila_context.Manila(self.ctxt_use_existing)
         list_sns.return_value = self.existing_sns
@@ -167,11 +187,17 @@ class ManilaSampleGeneratorTestCase(test.TestCase):
                     "id": "tenant_1_id", "name": "tenant_1_name",
                     "share_networks": [sn for sn in existing_sns[0:2]],
                     "sn_iterator": mock.ANY,
+                    "shares": [
+                        create_share.return_value
+                        for i in range(self.SHARES_PER_TENANT)],
                 },
                 "tenant_2_id": {
                     "id": "tenant_2_id", "name": "tenant_2_name",
                     "share_networks": [sn for sn in existing_sns[2:5]],
                     "sn_iterator": mock.ANY,
+                    "shares": [
+                        create_share.return_value
+                        for i in range(self.SHARES_PER_TENANT)],
                 },
             }
         })
@@ -184,13 +210,20 @@ class ManilaSampleGeneratorTestCase(test.TestCase):
         self.assertEqual(
             False, inst.context.get("manila_delete_share_networks"))
         self.assertEqual(expected_ctxt["tenants"], inst.context.get("tenants"))
+        self.assertEqual(
+            self.SHARES_PER_TENANT * len(self.ctxt_use_existing["tenants"]),
+            create_share.call_count)
+
         for i, sns in ((1, existing_sns[0:2]), (2, existing_sns[2:5])):
             sn_iterator = itertools.cycle(sns)
+            for x in range(abs(self.SHARES_PER_TENANT - len(sns))):
+                # Simulate calls spent on share creation
+                next(sn_iterator)
             for j in range(12):
                 self.assertEqual(
-                    next(sn_iterator),
+                    next(sn_iterator).id,
                     next(inst.context["tenants"]["tenant_%s_id" % i][
-                        "sn_iterator"]))
+                        "sn_iterator"]).id)
 
     def test_setup_use_existing_share_networks_tenant_not_found(self):
         ctxt = copy.deepcopy(self.ctxt_use_existing)
@@ -219,11 +252,13 @@ class ManilaSampleGeneratorTestCase(test.TestCase):
 
     @ddt.data(True, False)
     @mock.patch("rally.osclients.Clients")
+    @mock.patch(MANILA_UTILS_PATH + "_create_share")
     @mock.patch(MANILA_UTILS_PATH + "_create_share_network")
     @mock.patch(MANILA_UTILS_PATH + "_create_security_service")
     @mock.patch(MANILA_UTILS_PATH + "_add_security_service_to_share_network")
     def test_setup_autocreate_share_networks_with_security_services(
-            self, neutron, add_ss_to_sn, create_ss, create_sn, mock_osclients):
+            self, neutron, add_ss_to_sn, create_ss, create_sn, create_share,
+            mock_osclients):
         networks_per_tenant = 2
         ctxt = self._get_context(
             networks_per_tenant=networks_per_tenant,
@@ -238,6 +273,9 @@ class ManilaSampleGeneratorTestCase(test.TestCase):
         self.assertEqual(ctxt["config"], inst.context.get("config"))
         self.assertEqual(ctxt["users"], inst.context.get("users"))
         self.assertEqual(ctxt["tenants"], inst.context.get("tenants"))
+        self.assertEqual(
+            self.SHARES_PER_TENANT * self.TENANTS_AMOUNT,
+            create_share.call_count)
         create_ss.assert_has_calls([
             mock.call(**ss) for ss in self.SECURITY_SERVICES])
         add_ss_to_sn.assert_has_calls([
@@ -264,11 +302,13 @@ class ManilaSampleGeneratorTestCase(test.TestCase):
 
     @ddt.data(True, False)
     @mock.patch("rally.osclients.Clients")
+    @mock.patch(MANILA_UTILS_PATH + "_create_share")
     @mock.patch(MANILA_UTILS_PATH + "_create_share_network")
     @mock.patch(MANILA_UTILS_PATH + "_create_security_service")
     @mock.patch(MANILA_UTILS_PATH + "_add_security_service_to_share_network")
     def test_setup_autocreate_share_networks_wo_security_services(
-            self, neutron, add_ss_to_sn, create_ss, create_sn, mock_osclients):
+            self, neutron, add_ss_to_sn, create_ss, create_sn, create_share,
+            mock_osclients):
         networks_per_tenant = 2
         ctxt = self._get_context(
             networks_per_tenant=networks_per_tenant,
@@ -284,6 +324,9 @@ class ManilaSampleGeneratorTestCase(test.TestCase):
         self.assertEqual(ctxt["tenants"], inst.context.get("tenants"))
         self.assertFalse(create_ss.called)
         self.assertFalse(add_ss_to_sn.called)
+        self.assertEqual(
+            self.SHARES_PER_TENANT * self.TENANTS_AMOUNT,
+            create_share.call_count)
         if neutron:
             sn_args = {
                 "name": mock.ANY,
@@ -301,11 +344,13 @@ class ManilaSampleGeneratorTestCase(test.TestCase):
             self.assertTrue(ctxt["tenants"][t_id].get("sn_iterator", False))
 
     @mock.patch("rally.osclients.Clients")
+    @mock.patch(MANILA_UTILS_PATH + "_create_share")
     @mock.patch(MANILA_UTILS_PATH + "_create_share_network")
     @mock.patch(MANILA_UTILS_PATH + "_create_security_service")
     @mock.patch(MANILA_UTILS_PATH + "_add_security_service_to_share_network")
     def test_setup_autocreate_share_networks_wo_networks(
-            self, add_ss_to_sn, create_ss, create_sn, mock_osclients):
+            self, add_ss_to_sn, create_ss, create_sn, create_share,
+            mock_osclients):
         ctxt = self._get_context(networks_per_tenant=0)
         inst = manila_context.Manila(ctxt)
 
@@ -317,6 +362,9 @@ class ManilaSampleGeneratorTestCase(test.TestCase):
         self.assertEqual(ctxt["tenants"], inst.context.get("tenants"))
         self.assertFalse(create_ss.called)
         self.assertFalse(add_ss_to_sn.called)
+        self.assertEqual(
+            self.SHARES_PER_TENANT * self.TENANTS_AMOUNT,
+            create_share.call_count)
         create_sn.assert_has_calls([
             mock.call(name=mock.ANY) for i in range(self.TENANTS_AMOUNT)])
         mock_osclients.assert_has_calls([
@@ -325,13 +373,15 @@ class ManilaSampleGeneratorTestCase(test.TestCase):
             self.assertTrue(ctxt["tenants"][t_id].get("sn_iterator", False))
 
     @mock.patch("rally.osclients.Clients")
+    @mock.patch(MANILA_UTILS_PATH + "_delete_share")
+    @mock.patch(MANILA_UTILS_PATH + "_create_share")
     @mock.patch(MANILA_UTILS_PATH + "_delete_share_network")
     @mock.patch(MANILA_UTILS_PATH + "_delete_security_service")
     @mock.patch(MANILA_UTILS_PATH + "_list_share_servers")
     @mock.patch(MANILA_UTILS_PATH + "_list_share_networks")
     def test_cleanup_used_existing_share_networks(
-            self, list_sns, list_servers, delete_ss, delete_sn,
-            mock_osclients):
+            self, list_sns, list_servers, delete_ss, delete_sn, create_share,
+            delete_share, mock_osclients):
         inst = manila_context.Manila(self.ctxt_use_existing)
         list_sns.return_value = self.existing_sns
         inst.setup()
@@ -341,7 +391,13 @@ class ManilaSampleGeneratorTestCase(test.TestCase):
         self.assertFalse(list_servers.called)
         self.assertFalse(delete_ss.called)
         self.assertFalse(delete_sn.called)
-        self.assertEqual(2, mock_osclients.call_count)
+        self.assertEqual(4, mock_osclients.call_count)
+        self.assertEqual(
+            self.SHARES_PER_TENANT * len(self.ctxt_use_existing["tenants"]),
+            create_share.call_count)
+        self.assertEqual(
+            self.SHARES_PER_TENANT * len(self.ctxt_use_existing["tenants"]),
+            delete_share.call_count)
         for user in self.ctxt_use_existing["users"]:
             self.assertIn(mock.call(user["endpoint"]),
                           mock_osclients.mock_calls)
@@ -349,6 +405,8 @@ class ManilaSampleGeneratorTestCase(test.TestCase):
     @ddt.data(True, False)
     @mock.patch("rally.benchmark.utils.wait_for_delete")
     @mock.patch("rally.osclients.Clients")
+    @mock.patch(MANILA_UTILS_PATH + "_delete_share")
+    @mock.patch(MANILA_UTILS_PATH + "_create_share")
     @mock.patch(MANILA_UTILS_PATH + "_delete_share_network")
     @mock.patch(MANILA_UTILS_PATH + "_delete_security_service")
     @mock.patch(MANILA_UTILS_PATH + "_create_share_network")
@@ -357,7 +415,8 @@ class ManilaSampleGeneratorTestCase(test.TestCase):
     @mock.patch(MANILA_UTILS_PATH + "_list_share_servers")
     def test_cleanup_autocreated_share_networks(
             self, use_security_services, list_servers, add_ss_to_sn, create_ss,
-            create_sn, delete_ss, delete_sn, mock_osclients, wait_for_delete):
+            create_sn, delete_ss, delete_sn, create_share, delete_share,
+            mock_osclients, wait_for_delete):
         fake_share_servers = ["fake_share_server"]
         list_servers.return_value = fake_share_servers
         networks_per_tenant = 2
@@ -380,9 +439,19 @@ class ManilaSampleGeneratorTestCase(test.TestCase):
         list_servers.assert_has_calls([mock.call(search_opts=mock.ANY)])
         self.assertEqual(6, delete_sn.call_count)
         self.assertEqual(
+            self.SHARES_PER_TENANT * self.TENANTS_AMOUNT,
+            create_share.call_count)
+        self.assertEqual(
+            self.SHARES_PER_TENANT * self.TENANTS_AMOUNT,
+            delete_share.call_count)
+        self.assertEqual(
             18 if use_security_services else 0, delete_ss.call_count)
-        self.assertEqual(6, wait_for_delete.call_count)
+        self.assertEqual(
+            6 + self.SHARES_PER_TENANT * self.TENANTS_AMOUNT,
+            wait_for_delete.call_count)
         wait_for_delete.assert_has_calls([
             mock.call(fake_share_servers[0], update_resource=mock.ANY,
                       timeout=180, check_interval=2),
         ])
+        self.assertEqual(self.SHARES_PER_TENANT * self.TENANTS_AMOUNT,
+                         create_share.call_count)

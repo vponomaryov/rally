@@ -18,6 +18,7 @@ import itertools
 import ddt
 import mock
 
+from rally import exceptions
 from rally.plugins.openstack.scenarios.manila import utils
 from tests.unit import test
 
@@ -212,3 +213,103 @@ class ManilaScenarioTestCase(test.TestCase):
             result)
         mock_share_networks_client.add_security_service.assert_has_calls([
             mock.call(fake_sn, fake_ss)])
+
+    @ddt.data(
+        {"key_min_length": 0},
+        {"key_min_length": 256},
+        {"key_max_length": 0},
+        {"key_max_length": 256},
+        {"value_min_length": 0},
+        {"value_min_length": 1024},
+        {"value_max_length": 0},
+        {"value_max_length": 1024},
+        {"key_min_length": 5, "key_max_length": 4},
+        {"value_min_length": 5, "value_max_length": 4},
+    )
+    def test__set_metadata_wrong_params(self, params):
+        self.assertRaises(
+            exceptions.InvalidArgumentsException,
+            self.scenario._set_metadata,
+            "fake_share", **params)
+
+    @ddt.data(
+        {},
+        {"sets": 0, "set_size": 1},
+        {"sets": 1, "set_size": 1},
+        {"sets": 5, "set_size": 7},
+        {"sets": 5, "set_size": 2},
+        {"key_min_length": 1, "key_max_length": 1},
+        {"key_min_length": 1, "key_max_length": 2},
+        {"key_min_length": 255, "key_max_length": 255},
+        {"value_min_length": 1, "value_max_length": 1},
+        {"value_min_length": 1, "value_max_length": 2},
+        {"value_min_length": 1023, "value_max_length": 1023},
+    )
+    def test__set_metadata(self, params):
+        sets = params.get("sets", 1)
+        set_size = params.get("set_size", 1)
+        gen_name_calls = sets * set_size * 2
+        data = range(gen_name_calls)
+        generator_data = iter(data)
+
+        def fake_random_name(prefix="fake", length="fake"):
+            return next(generator_data)
+
+        scenario = self.scenario
+        scenario.clients = mock.MagicMock()
+        scenario._generate_random_name = mock.MagicMock(
+            side_effect=fake_random_name)
+
+        keys = scenario._set_metadata("fake_share", **params)
+
+        self.assertEqual(
+            gen_name_calls,
+            scenario._generate_random_name.call_count)
+        self.assertEqual(
+            params.get("sets", 1),
+            scenario.clients.return_value.shares.set_metadata.call_count)
+        scenario.clients.return_value.shares.set_metadata.assert_has_calls([
+            mock.call(
+                "fake_share",
+                dict([(j, j + 1) for j in data[
+                    i * set_size * 2: (i + 1) * set_size * 2: 2]])
+            ) for i in range(sets)
+        ])
+        self.assertEqual([i for i in range(0, gen_name_calls, 2)], keys)
+
+    @ddt.data(
+        {"keys": None},
+        {"keys": []},
+        {"keys": {}},
+        {"keys": [0]},
+        {"keys": [0], "deletes": 2, "delete_size": 1},
+    )
+    def test__delete_metadata_wrong_params(self, params):
+        self.assertRaises(
+            exceptions.InvalidArgumentsException,
+            self.scenario._delete_metadata,
+            "fake_share", **params
+        )
+
+    @ddt.data(
+        {"keys": [i for i in range(30)]},
+        {"keys": [0, 2, 4], "deletes": 0, "delete_size": 1},
+        {"keys": [0, 2, 4], "deletes": 1, "delete_size": 1},
+        {"keys": [0, 2, 4], "deletes": 1, "delete_size": 3},
+        {"keys": [0, 2, 4], "deletes": 3, "delete_size": 1},
+    )
+    def test__delete_metadata(self, params):
+        deletes = params.get("deletes", 10)
+        delete_size = params.get("delete_size", 3)
+        keys = params.get("keys", [])
+        scenario = self.scenario
+        scenario.clients = mock.MagicMock()
+
+        scenario._delete_metadata("fake_share", **params)
+
+        scenario.clients.return_value.shares.delete_metadata.assert_has_calls([
+            mock.call(
+                "fake_share",
+                keys[i * delete_size:(i + 1) * delete_size]) for i in range(
+                    deletes)
+        ])

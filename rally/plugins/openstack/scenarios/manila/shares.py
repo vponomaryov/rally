@@ -13,9 +13,12 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+import random
+
 from rally.benchmark.scenarios import base
 from rally.benchmark import validation
 from rally import consts
+from rally import exceptions
 from rally import osclients
 from rally.plugins.openstack.scenarios.manila import utils as manila_utils
 
@@ -208,3 +211,52 @@ class ManilaShares(manila_utils.ManilaScenario):
         self._create_share(share_proto=share_proto, size=size, **kwargs)
         self.sleep_between(min_sleep, max_sleep)
         self._list_shares(detailed=detailed)
+
+    @validation.required_clients("manila")
+    @validation.required_services(consts.Service.MANILA)
+    @base.scenario()
+    def set_and_delete_metadata(self, sets=10, set_size=3,
+                                deletes=5, delete_size=3,
+                                key_min_length=1, key_max_length=255,
+                                value_min_length=1, value_max_length=1023):
+        """Sets and deletes share metadata.
+
+        This requires a share to be created with the shares
+        context. Additionally, ``sets * set_size`` must be greater
+        than or equal to ``deletes * delete_size``.
+
+        :param sets: how many set_metadata operations to perform
+        :param set_size: number of metadata keys to set in each
+            set_metadata operation
+        :param deletes: how many delete_metadata operations to perform
+        :param delete_size: number of metadata keys to delete in each
+            delete_metadata operation
+        :param key_min_length: minimal size of metadata key to set
+        :param key_max_length: maximum size of metadata key to set
+        :param value_min_length: minimal size of metadata value to set
+        :param value_max_length: maximum size of metadata value to set
+        """
+        if sets * set_size < deletes * delete_size:
+            raise exceptions.InvalidArgumentsException(
+                "Not enough metadata keys will be created: "
+                "Setting %(num_keys)s keys, but deleting %(num_deletes)s" %
+                {"num_keys": sets * set_size,
+                 "num_deletes": deletes * delete_size})
+
+        if len(self.context["tenant"].get("shares", [])) < 1:
+            raise exceptions.InvalidContextSetup(
+                reason=("This scenario requires, at least, one share to be "
+                        "created in context. Please specify context option "
+                        "'shares_per_tenant' bigger than 0"))
+
+        share = random.choice(self.context["tenant"]["shares"])
+        keys = self._set_metadata(
+            share=share,
+            sets=sets,
+            set_size=set_size,
+            key_min_length=key_min_length,
+            key_max_length=key_max_length,
+            value_min_length=value_min_length,
+            value_max_length=value_max_length)
+        self._delete_metadata(
+            share=share, keys=keys, deletes=deletes, delete_size=delete_size)
