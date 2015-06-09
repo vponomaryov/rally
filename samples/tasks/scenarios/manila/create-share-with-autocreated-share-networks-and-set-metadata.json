@@ -1,0 +1,45 @@
+{
+    "ManilaShares.set_and_delete_metadata": [
+        {
+            "args": {
+                "sets": 1,
+                "set_size": 3,
+                "deletes": 1,
+                "delete_size": 3,
+                "key_min_length": 1,
+                "key_max_length": 255,
+                "value_min_length": 1,
+                "value_max_length": 1023
+            },
+            "runner": {
+                "type": "constant",
+                "times": 1,
+                "concurrency": 1
+            },
+            "context": {
+                "quotas": {
+                    "manila": {
+                        "shares": -1,
+                        "gigabytes": -1,
+                        "share_networks": -1
+                    }
+                },
+                "users": {
+                    "tenants": 1,
+                    "users_per_tenant": 1
+                },
+                "network": {
+                    "networks_per_tenant": 1,
+                    "start_cidr": "99.0.0.0/24"
+                },
+                "manila": {
+                    "use_share_networks": true,
+                    "use_security_services": false,
+                    "shares_per_tenant": 1,
+                    "share_proto": "NFS",
+                    "size": 1
+                }
+            }
+        }
+    ]
+}

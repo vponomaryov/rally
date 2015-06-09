@@ -13,12 +13,14 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+import random
 import time
 
 from oslo_config import cfg
 
 from rally.benchmark.scenarios import base
 from rally.benchmark import utils as bench_utils
+from rally import exceptions
 
 
 MANILA_BENCHMARK_OPTS = [
@@ -71,7 +73,8 @@ class ManilaScenario(base.Scenario):
         :param is_public: defines whether to set share as public or not.
         :returns: instance of :class:`Share`
         """
-        if (self.context.get("tenant", {}).get("share_networks", []) and
+        if (self.context and
+                self.context.get("tenant", {}).get("share_networks", []) and
                 not kwargs.get("share_network")):
             kwargs["share_network"] = next(self.context.get("tenant", {}).get(
                 "sn_iterator"))
@@ -116,6 +119,82 @@ class ManilaScenario(base.Scenario):
         """
         return self.clients("manila").shares.list(
             detailed=detailed, search_opts=search_opts)
+
+    @base.atomic_action_timer("manila.set_metadata")
+    def _set_metadata(self, share, sets=1, set_size=1,
+                      key_min_length=1, key_max_length=255,
+                      value_min_length=1, value_max_length=1023):
+        """Sets share metadata.
+
+        :param share: the share to set metadata on
+        :param sets: how many operations to perform
+        :param set_size: number of metadata keys to set in each operation
+        :param key_min_length: minimal size of metadata key to set
+        :param key_max_length: maximum size of metadata key to set
+        :param value_min_length: minimal size of metadata value to set
+        :param value_max_length: maximum size of metadata value to set
+        :returns: A list of keys that were set
+        """
+        keys = []
+        if not (key_min_length < key_max_length or
+                value_min_length < value_max_length):
+            raise exceptions.InvalidArgumentsException(
+                "Min length for keys and values of metadata should be smaller "
+                "than maximum length.")
+        elif key_min_length not in range(1, 256):
+            raise exceptions.InvalidArgumentsException(
+                "key_min_length '%s' is not in range(1, 256)" % key_min_length)
+        elif key_max_length not in range(1, 256):
+            raise exceptions.InvalidArgumentsException(
+                "key_max_length '%s' is not in range(1, 256)" % key_max_length)
+        elif value_min_length not in range(1, 1024):
+            raise exceptions.InvalidArgumentsException(
+                "value_min_length '%s' is not in range(1, 1024)" %
+                value_min_length)
+        elif value_max_length not in range(1, 1024):
+            raise exceptions.InvalidArgumentsException(
+                "value_max_length '%s' is not in range(1, 1024)" %
+                value_max_length)
+
+        for i in range(sets):
+            metadata = {}
+            for j in range(set_size):
+                if key_min_length == key_max_length:
+                    key_length = key_min_length
+                else:
+                    key_length = random.choice(
+                        range(key_min_length, key_max_length))
+                if value_min_length == value_max_length:
+                    value_length = value_min_length
+                else:
+                    value_length = random.choice(
+                        range(value_min_length, value_max_length))
+                key = self._generate_random_name(prefix="", length=key_length)
+                keys.append(key)
+                value = self._generate_random_name(
+                    prefix="", length=value_length)
+                metadata[key] = value
+            self.clients("manila").shares.set_metadata(share, metadata)
+
+        return keys
+
+    @base.atomic_action_timer("manila.delete_metadata")
+    def _delete_metadata(self, share, keys, deletes=10, delete_size=3):
+        """Deletes share metadata.
+
+        :param share: The share to delete metadata from
+        :param deletes: how many operations to perform
+        :param delete_size: number of metadata keys to delete in each operation
+        :param keys: a list of keys to choose deletion candidates from
+        """
+        if len(keys) < deletes * delete_size:
+            raise exceptions.InvalidArgumentsException(
+                "Not enough metadata keys to delete: "
+                "%(num_keys)s keys, but asked to delete %(num_deletes)s" %
+                {"num_keys": len(keys), "num_deletes": deletes * delete_size})
+        for i in range(deletes):
+            to_del = keys[i * delete_size:(i + 1) * delete_size]
+            self.clients("manila").shares.delete_metadata(share, to_del)
 
     @base.atomic_action_timer("manila.create_share_network")
     def _create_share_network(self, neutron_net_id=None,

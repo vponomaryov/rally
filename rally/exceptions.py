@@ -111,6 +111,10 @@ class InvalidBenchmarkConfig(InvalidTaskException):
                 "\nReason:\n %(reason)s")
 
 
+class InvalidContextSetup(RallyException):
+    msg_fmt = _("Context setup is invalid: %(reason)s")
+
+
 class NotFoundException(RallyException):
     msg_fmt = _("Not found.")
 

@@ -18,6 +18,7 @@ import itertools
 from oslo_config import cfg
 
 from rally.benchmark import context
+from rally.benchmark.scenarios import base as scenario_base
 from rally.benchmark import utils as bench_utils
 from rally.common.i18n import _
 from rally.common import log
@@ -77,6 +78,22 @@ class Manila(context.Context):
             # Where 'type' is required key and should have one of following
             # values: 'active_directory', 'kerberos' or 'ldap'.
             "security_services": {"type": "array"},
+
+            # NOTE(vponomaryov): set it bigger than zero only if scenarios that
+            # use precreated shares will be run.
+            "shares_per_tenant": {
+                "type": "integer",
+                "minimum": 0,
+            },
+            # NOTE(vponomaryov): size and share_proto are used for creation of
+            # shares.
+            "size": {
+                "type": "integer",
+                "minimum": 1
+            },
+            "share_proto": {
+                "type": "string",
+            },
         },
         "additionalProperties": False
     }
@@ -85,6 +102,10 @@ class Manila(context.Context):
         "share_networks": [],
         "use_security_services": False,
         "security_services": [],
+
+        "shares_per_tenant": 0,
+        "size": 1,
+        "share_proto": "NFS",
     }
 
     def _setup_for_existing_users(self):
@@ -144,6 +165,13 @@ class Manila(context.Context):
                 itertools.cycle(
                     self.context["tenants"][tenant_id]["share_networks"]))
 
+            # Create shares
+            self._create_shares(
+                manila_scenario,
+                tenant_id,
+                self.config["share_proto"],
+                self.config["size"])
+
     def _setup_for_autocreated_users(self):
         # Create share network for each network of tenant
         for user, tenant_id in (utils.iterate_per_tenants(
@@ -189,10 +217,37 @@ class Manila(context.Context):
                 itertools.cycle(
                     self.context["tenants"][tenant_id]["share_networks"]))
 
+            # Create shares
+            self._create_shares(
+                manila_scenario,
+                tenant_id,
+                self.config["share_proto"],
+                self.config["size"])
+
+    def _create_shares(self, manila_scenario, tenant_id, share_proto, size=1):
+        tenant_ctxt = self.context["tenants"][tenant_id]
+        tenant_ctxt.setdefault("shares", list())
+        for i in range(self.config["shares_per_tenant"]):
+            kwargs = {"share_proto": share_proto, "size": size}
+            kwargs["name"] = scenario_base.Scenario._generate_random_name(
+                prefix="ctx_rally_share_")
+            if tenant_ctxt.get("share_networks"):
+                kwargs["share_network"] = next(tenant_ctxt["sn_iterator"])
+            share = manila_scenario._create_share(**kwargs)
+            tenant_ctxt["shares"].append(share)
+
     @utils.log_task_wrapper(LOG.info, _("Enter context: `manila`"))
     def setup(self):
         if not self.config["use_share_networks"]:
-            return
+            for user, tenant_id in (utils.iterate_per_tenants(
+                    self.context.get("users", []))):
+                clients = osclients.Clients(user["endpoint"])
+                manila_scenario = manila_utils.ManilaScenario(clients=clients)
+                self._create_shares(
+                    manila_scenario,
+                    tenant_id,
+                    self.config["share_proto"],
+                    self.config["size"])
         elif self.context["config"].get("existing_users"):
             self._setup_for_existing_users()
         else:
@@ -224,6 +279,10 @@ class Manila(context.Context):
                         manila_scenario,
                         "_delete_%s" % resources_singular_name)
                     delete_func(resource)
+
+    def _cleanup_tenant_shares(self):
+        """Cleans up tenant shares."""
+        self._cleanup_tenant_resources("shares", "share")
 
     def _cleanup_tenant_share_networks(self):
         """Cleans up tenant share networks."""
@@ -267,6 +326,9 @@ class Manila(context.Context):
 
     @utils.log_task_wrapper(LOG.info, _("Exit context: `manila`"))
     def cleanup(self):
+        # NOTE(vponomaryov): delete shares that were created by context
+        self._cleanup_tenant_shares()
+
         if not self.context.get("manila_delete_share_networks", True):
             # NOTE(vponomaryov): assume that share networks were not created
             # by test run.
