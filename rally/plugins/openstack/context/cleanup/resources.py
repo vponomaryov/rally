@@ -244,6 +244,24 @@ class CinderQuotas(QuotaMixin, base.ResourceManager):
     pass
 
 
+# MANILA
+
+_manila_order = get_order(450)
+
+
+@base.resource("manila", "share_networks", order=next(_manila_order),
+               tenant_resource=True)
+class ManilaShareNetwork(base.ResourceManager):
+
+    def list(self):
+        self._resource = "share_networks"
+        return super(ManilaShareNetwork, self).list()
+
+    def delete(self):
+        self._resource = "share_networks"
+        return super(ManilaShareNetwork, self).delete()
+
+
 # GLANCE
 
 @base.resource("glance", "images", order=500, tenant_resource=True)
