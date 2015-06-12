@@ -138,3 +138,34 @@ class ManilaShares(manila_utils.ManilaScenario):
         clients = osclients.Clients(self.context["admin"]["endpoint"])
         manila_scenario = manila_utils.ManilaScenario(clients=clients)
         manila_scenario._list_share_servers(search_opts=search_opts)
+
+    @validation.required_clients("manila")
+    @validation.required_services(consts.Service.MANILA)
+    @base.scenario()
+    def create_security_service_and_delete(self, type, dns_ip=None,
+                                           server=None, domain=None, user=None,
+                                           password=None, name=None,
+                                           description=None):
+        """Creates security service and then deletes.
+
+        :param type: security service type - 'ldap', 'kerberos' or
+                     'active_directory'
+        :param dns_ip: dns ip address used inside tenant's network
+        :param server: security service server ip address or hostname
+        :param domain: security service domain
+        :param user: security identifier used by tenant
+        :param password: password used by user
+        :param name: security service name
+        :param description: security service description
+        """
+        security_service = self._create_security_service(
+            type=type,
+            dns_ip=dns_ip,
+            server=server,
+            domain=domain,
+            user=user,
+            password=password,
+            name=name,
+            description=description,
+        )
+        self._delete_security_service(security_service)

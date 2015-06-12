@@ -1,0 +1,16 @@
+---
+  ManilaShares.create_security_service_and_delete:
+    -
+      args:
+        type: "active_directory"
+        dns_ip: "fake_dns_ip"
+        server: "fake-server"
+        domain: "fake_domain"
+        user: "fake_user"
+        password: "fake_password"
+        name: "fake_name"
+        description: "fake_description"
+      runner:
+        type: "constant"
+        times: 10
+        concurrency: 10
