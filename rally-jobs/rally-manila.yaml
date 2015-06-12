@@ -77,3 +77,18 @@
           tenants: 1
           users_per_tenant: 1
   {% endfor %}
+
+  ManilaShares.attach_security_service_to_share_network:
+  {% for s in ("ldap", "kerberos", "active_directory") %}
+    -
+      args:
+        security_service_type: "active_directory"
+      runner:
+        type: "constant"
+        times: 10
+        concurrency: 10
+      context:
+        quotas:
+          manila:
+            share_networks: -1
+  {% endfor %}

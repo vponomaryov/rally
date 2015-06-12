@@ -262,6 +262,19 @@ class ManilaShareNetwork(base.ResourceManager):
         return super(ManilaShareNetwork, self).delete()
 
 
+@base.resource("manila", "security_services", order=next(_manila_order),
+               tenant_resource=True)
+class ManilaSecurityService(base.ResourceManager):
+
+    def list(self):
+        self._resource = "security_services"
+        return super(ManilaSecurityService, self).list()
+
+    def delete(self):
+        self._resource = "security_services"
+        return super(ManilaSecurityService, self).delete()
+
+
 # GLANCE
 
 @base.resource("glance", "images", order=500, tenant_resource=True)
