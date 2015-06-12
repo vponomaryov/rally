@@ -14,7 +14,8 @@
         manila:
           use_share_networks: False
 
-  ManilaShares.create_and_delete_share:
+  {% for s in ("create_and_delete_share", "create_and_list_share") %}
+  ManilaShares.{{s}}:
     -
       args:
         share_proto: "nfs"
@@ -39,6 +40,7 @@
           start_cidr: "99.0.0.0/24"
         manila:
           use_share_networks: True
+  {% endfor %}
 
   ManilaShares.create_share_network_and_delete:
     -
