@@ -132,3 +132,27 @@ class ManilaSharesTestCase(test.TestCase):
             **expected_create_params)
         scenario._list_share_networks.assert_called_once_with(
             **expected_list_params)
+
+    @ddt.data(
+        {},
+        {"search_opts": None},
+        {"search_opts": {}},
+        {"search_opts": {"foo": "bar"}},
+    )
+    @mock.patch(
+        "rally.plugins.openstack.scenarios.manila.utils.ManilaScenario")
+    @mock.patch("rally.osclients.Clients")
+    def test_list_share_servers(self, search_opts, mock_osclients,
+                                mock_manila_scenario):
+        scenario = shares.ManilaShares()
+        scenario.context = {"admin": {"endpoint": "fake_endpoint"}}
+        scenario._list_share_servers = mock.MagicMock()
+
+        scenario.list_share_servers(search_opts=search_opts)
+
+        mock_manila_scenario.return_value._list_share_servers.assert_has_calls(
+            mock.call(search_opts=search_opts))
+        mock_osclients.assert_called_once_with(
+            scenario.context["admin"]["endpoint"])
+        mock_manila_scenario.assert_called_once_with(
+            clients=mock_osclients.return_value)

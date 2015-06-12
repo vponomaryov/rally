@@ -16,6 +16,7 @@
 from rally.benchmark.scenarios import base
 from rally.benchmark import validation
 from rally import consts
+from rally import osclients
 from rally.plugins.openstack.scenarios.manila import utils as manila_utils
 
 
@@ -121,3 +122,19 @@ class ManilaShares(manila_utils.ManilaScenario):
             detailed=detailed,
             search_opts=search_opts,
         )
+
+    @validation.required_clients("manila")
+    @validation.required_services(consts.Service.MANILA)
+    @validation.required_openstack(admin=True)
+    @base.scenario()
+    def list_share_servers(self, search_opts=None):
+        """Lists share servers.
+
+        Requires admin creds.
+
+        :param search_opts: container of following search opts:
+            "host", "status", "share_network" and "project_id".
+        """
+        clients = osclients.Clients(self.context["admin"]["endpoint"])
+        manila_scenario = manila_utils.ManilaScenario(clients=clients)
+        manila_scenario._list_share_servers(search_opts=search_opts)

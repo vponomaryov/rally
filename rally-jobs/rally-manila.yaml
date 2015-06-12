@@ -46,3 +46,12 @@
         users:
           tenants: 2
           users_per_tenant: 1
+
+  ManilaShares.list_share_servers:
+    -
+      args:
+        search_opts: {}
+      runner:
+        type: "constant"
+        times: 10
+        concurrency: 1
